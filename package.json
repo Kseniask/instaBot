@@ -1,0 +1,24 @@
+{
+  "name": "instaBot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "bot.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon bot.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.21.4",
+    "cheerio": "^1.0.0-rc.12",
+    "dotenv": "^16.0.3",
+    "node-fetch": "^2.6.7",
+    "nodemon": "^2.0.20",
+    "puppeteer": "^19.2.2",
+    "request-promise-native": "^1.0.9",
+    "requests": "^0.3.0",
+    "telegraf": "^4.10.0"
+  }
+}
