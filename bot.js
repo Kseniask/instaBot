@@ -34,12 +34,13 @@ bot.mention(async (ctx) => {
   ctx.reply(randomPhrases[(Math.random() * randomPhrases.length) | 0]);
 
   const browser = await puppeteer.launch();
-
   try {
     const page = await browser.newPage();
     await page.setRequestInterception(true);
     let userData;
     page.on('requestfinished', async (request) => {
+      console.log(request.url());
+
       if (request.url().includes(`https://www.instagram.com/api/v1/users`)) {
         console.log('response', (await request.response().json()).data);
         userData = (await request.response().json()).data.user;
