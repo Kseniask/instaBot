@@ -40,7 +40,6 @@ bot.mention(async (ctx) => {
     let userData;
     page.on('requestfinished', async (request) => {
       if (request.url().includes(`https://www.instagram.com/api/v1/users`)) {
-        await new Promise((resolve) => setTimeout(resolve, 5000));
         console.log('response', (await request.response().json()).data);
         userData = (await request.response().json()).data.user;
       }
