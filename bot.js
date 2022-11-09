@@ -16,6 +16,18 @@ const randomPhrases = [
   'On it! Надіємось шо шось відкопаю',
   'Єс сер! Виконую завдання'
 ];
+
+async function clearUpdates (token) {
+  const { result } = (await axios.get(`https://api.telegram.org/bot${token}/getUpdates`)).data;
+  console.log('result', result);
+
+  if (result.lenght > 0) {
+    await axios.get(
+      `https://api.telegram.org/bot${token}/getUpdates?offset=${result[result.length - 1].message_id + 1}`
+    );
+  }
+}
+
 bot.start((ctx) => {
   ctx.reply(introMessage).then(() => ctx.reply(helpMessage));
 });
@@ -111,4 +123,7 @@ bot.on('text', (ctx) => {
 
 bot.command('menu', (ctx) => {});
 
-bot.launch();
+(async () => {
+  await clearUpdates(TELEGRAM_TOKEN);
+  bot.launch();
+})();
