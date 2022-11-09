@@ -33,31 +33,51 @@ bot.mention(async (ctx) => {
   const instaUsername = ctx.update.message.text.slice(1);
   ctx.reply(randomPhrases[(Math.random() * randomPhrases.length) | 0]);
 
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+
   try {
-    const page = await browser.newPage();
-    await page.setRequestInterception(true);
     let userData;
+    let stopRequests = false;
+    let accountExists = false;
+    const page = await browser.newPage();
+    await page.goto('https://www.instagram.com', { waitUntil: 'networkidle0' });
+    if (await page.waitForSelector('[name="username"]', { timeout: 5000 })) {
+      await page.focus('input[name="username"]');
+      await page.keyboard.type(process.env.USERNAME);
+      await page.focus('input[name="password"]');
+      await page.keyboard.type(process.env.PASSWORD);
+      await page.click("[type='submit']");
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+    }
+
+    await page.setRequestInterception(true);
+
     page.on('requestfinished', async (request) => {
-      if (request.url().includes(`https://www.instagram.com/api/v1/users`)) {
-        console.log('response', (await request.response().json()).data);
+      const url = request.url();
+      if (url.includes(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${instaUsername}`)) {
         userData = (await request.response().json()).data.user;
       }
     });
-    let stopRequests = false;
+
     page.on('request', async (request) => {
-      if (request.url().includes(`https://www.instagram.com/api/v1/users`)) {
-        stopRequests = true;
-        return await request.continue();
-      }
       if (stopRequests) {
         return await request.abort();
+      }
+      if (
+        request.url().includes(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${instaUsername}`)
+      ) {
+        stopRequests = true;
+        accountExists = true;
+        return await request.continue();
       }
       await request.continue();
     });
 
-    await page.goto(`https://www.instagram.com/${instaUsername}/`, { waitUntil: 'networkidle0' });
+    await page.goto(`https://www.instagram.com/${instaUsername}`, { waitUntil: 'networkidle0' });
 
+    if (!accountExists) {
+      return ctx.reply('Походу такого акаунта не існує..');
+    }
     if (userData.is_private) {
       return ctx.reply('Упсі.. Акаунт то привaтний. Я не настільки кльовий, сорі ');
     }
@@ -65,7 +85,6 @@ bot.mention(async (ctx) => {
     const userStories = await axios
       .get(`https://storiesig.info/api/ig/stories/${userData.id}`)
       .then((res) => res.data.result || undefined);
-    console.log('userStories', userStories);
 
     if (userStories.length !== 0) {
       const mediaGroups = [[], [], [], []];
@@ -77,29 +96,30 @@ bot.mention(async (ctx) => {
           type: isVideo ? 'video' : 'photo',
           media: storyUrl
         };
-        if (index < 10) {
+        if (index < 9) {
           mediaGroups[0].push(mediaValue);
-        } else if (index < 20) {
+        } else if (index < 19) {
           mediaGroups[1].push(mediaValue);
-        } else if (index < 30) {
+        } else if (index < 29) {
           mediaGroups[2].push(mediaValue);
         } else {
           mediaGroups[3].push(mediaValue);
         }
         return;
       });
-      mediaGroups.forEach((mediaGroup) => {
+
+      mediaGroups.forEach(async (mediaGroup) => {
         if (mediaGroup.length > 0) {
           if (mediaGroup.length === 1) {
             switch (mediaGroup[0].type) {
               case 'photo':
-                bot.telegram.sendPhoto(ctx.chat.id, mediaGroup[0].media);
+                await bot.telegram.sendPhoto(ctx.chat.id, mediaGroup[0].media);
                 break;
               case 'video':
-                bot.telegram.sendVideo(ctx.chat.id, mediaGroup[0].media);
+                await bot.telegram.sendVideo(ctx.chat.id, mediaGroup[0].media);
             }
           } else {
-            bot.telegram.sendMediaGroup(ctx.chat.id, mediaGroup);
+            await bot.telegram.sendMediaGroup(ctx.chat.id, mediaGroup);
           }
         }
       });
