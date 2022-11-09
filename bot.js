@@ -39,23 +39,21 @@ bot.mention(async (ctx) => {
     await page.setRequestInterception(true);
     let userData;
     page.on('requestfinished', async (request) => {
-      console.log(request.url());
-
       if (request.url().includes(`https://www.instagram.com/api/v1/users`)) {
-        console.log('response', (await request.response().json()).data);
+        console.log('response', (await request.response().json()).data.user);
         userData = (await request.response().json()).data.user;
       }
     });
     let stopRequests = false;
-    page.on('request', (request) => {
+    page.on('request', async (request) => {
       if (request.url().includes(`https://www.instagram.com/api/v1/users`)) {
         stopRequests = true;
-        return request.continue();
+        return await request.continue();
       }
       if (stopRequests) {
-        return request.abort();
+        return await request.abort();
       }
-      request.continue();
+      await request.continue();
     });
 
     await page.goto(`https://www.instagram.com/${instaUsername}/`, { waitUntil: 'networkidle0' });
@@ -67,6 +65,7 @@ bot.mention(async (ctx) => {
     const userStories = await axios
       .get(`https://storiesig.info/api/ig/stories/${userData.id}`)
       .then((res) => res.data.result || undefined);
+    console.log('userStories', userStories);
 
     if (userStories.length !== 0) {
       const mediaGroups = [[], [], [], []];
