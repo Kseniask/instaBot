@@ -16,6 +16,13 @@ const randomPhrases = [
   'On it! Надіємось шо шось відкопаю',
   'Єс сер! Виконую завдання'
 ];
+process.on('uncaughtException', function (error) {
+  console.log('\x1b[31m', 'Exception: ', error, '\x1b[0m');
+});
+
+process.on('unhandledRejection', function (error, p) {
+  console.log('\x1b[31m', 'Error: ', error.message, '\x1b[0m');
+});
 
 async function clearUpdates (token) {
   const { result } = (await axios.get(`https://api.telegram.org/bot${token}/getUpdates`)).data;
@@ -125,5 +132,8 @@ bot.command('menu', (ctx) => {});
 
 (async () => {
   await clearUpdates(TELEGRAM_TOKEN);
-  bot.launch();
+  bot.launch({
+    polling: true
+  });
+  console.log('bot started');
 })();
