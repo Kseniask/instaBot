@@ -24,17 +24,6 @@ process.on('unhandledRejection', function (error, p) {
   console.log('\x1b[31m', 'Error: ', error.message, '\x1b[0m');
 });
 
-async function clearUpdates (token) {
-  const { result } = (await axios.get(`https://api.telegram.org/bot${token}/getUpdates`)).data;
-  console.log('result', result);
-
-  if (result.lenght > 0) {
-    await axios.get(
-      `https://api.telegram.org/bot${token}/getUpdates?offset=${result[result.length - 1].message_id + 1}`
-    );
-  }
-}
-
 bot.start((ctx) => {
   ctx.reply(introMessage).then(() => ctx.reply(helpMessage));
 });
@@ -44,7 +33,7 @@ bot.mention(async (ctx) => {
   const instaUsername = ctx.update.message.text.slice(1);
   ctx.reply(randomPhrases[(Math.random() * randomPhrases.length) | 0]);
 
-  const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+  const browser = await puppeteer.launch();
 
   try {
     const page = await browser.newPage();
@@ -52,6 +41,7 @@ bot.mention(async (ctx) => {
     let userData;
     page.on('requestfinished', async (request) => {
       if (request.url().includes(`https://www.instagram.com/api/v1/users`)) {
+        console.log('response', (await request.response().json()).data);
         userData = (await request.response().json()).data.user;
       }
     });
@@ -130,10 +120,4 @@ bot.on('text', (ctx) => {
 
 bot.command('menu', (ctx) => {});
 
-(async () => {
-  await clearUpdates(TELEGRAM_TOKEN);
-  bot.launch({
-    polling: true
-  });
-  console.log('bot started');
-})();
+bot.launch();
