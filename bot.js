@@ -1,6 +1,16 @@
 require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const { TELEGRAM_TOKEN } = process.env;
+async function clearUpdates (token) {
+  const { result } = (await axios.get(`https://api.telegram.org/bot${token}/getUpdates`)).data;
+
+  if (result.lenght > 0) {
+    await axios.get(
+      `https://api.telegram.org/bot${token}/getUpdates?offset=${result[result.length - 1].message_id + 1}`
+    );
+  }
+}
+clearUpdates();
 const bot = new Telegraf(TELEGRAM_TOKEN);
 const axios = require('axios');
 const puppeteer = require('puppeteer');
