@@ -31,66 +31,40 @@ bot.start((ctx) => {
 //@
 bot.mention(async (ctx) => {
   const instaUsername = ctx.update.message.text.slice(1);
+
   ctx.reply(randomPhrases[(Math.random() * randomPhrases.length) | 0]);
 
   const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
 
   try {
-    let userData;
-    let stopRequests = false;
-    let accountExists = false;
     const page = await browser.newPage();
-    await page.goto('https://www.instagram.com', { waitUntil: 'networkidle0' });
-    if (await page.waitForSelector('[name="username"]', { timeout: 5000 })) {
-      await page.focus('input[name="username"]');
-      await page.keyboard.type(process.env.USERNAME);
-      await page.focus('input[name="password"]');
-      await page.keyboard.type(process.env.PASSWORD);
-      await page.click("[type='submit']");
-      await new Promise((resolve) => setTimeout(resolve, 6000));
-    }
+    await page.goto(`https://dumpor.com/v/${instaUsername}`, { waitUntil: 'networkidle0' });
+    const isPrivate = false;
 
-    await page.setRequestInterception(true);
-
-    page.on('requestfinished', async (request) => {
-      const url = request.url();
-      if (url.includes(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${instaUsername}`)) {
-        userData = (await request.response().json()).data.user;
-      }
-    });
-
-    page.on('request', async (request) => {
-      if (stopRequests) {
-        return await request.abort();
-      }
-      if (
-        request.url().includes(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${instaUsername}`)
-      ) {
-        stopRequests = true;
-        accountExists = true;
-        return await request.continue();
-      }
-      await request.continue();
-    });
-
-    await page.goto(`https://www.instagram.com/${instaUsername}`, { waitUntil: 'networkidle0' });
-
-    if (!accountExists) {
-      return ctx.reply('Походу такого акаунта не існує..');
-    }
-    if (userData.is_private) {
-      return ctx.reply('Упсі.. Акаунт то привaтний. Я не настільки кльовий, сорі ');
+    const userId = await page.evaluate(
+      (instaUsername) => {
+        const profile = document.querySelector(`[data-name=${instaUsername}]`);
+        if (!profile) {
+          return 0;
+        }
+        return profile.getAttribute('data-id');
+      },
+      instaUsername,
+      isPrivate
+    );
+    if (userId === 0) {
+      return ctx.reply('Або акаунт приватний aбо такого юзера не існує..');
     }
 
     const userStories = await axios
-      .get(`https://storiesig.info/api/ig/stories/${userData.id}`)
+      .get(`https://storiesig.info/api/ig/stories/${userId}`)
       .then((res) => res.data.result || undefined);
 
     if (userStories.length !== 0) {
       const mediaGroups = [[], [], [], []];
       userStories.forEach((story, index) => {
         const isVideo = story.video_versions;
-        const storyUrl = isVideo ? story.video_versions[0].url : story.image_versions2.candidates[0].url;
+        const storyUrl = isVideo ? story.video_versions[0].url : story.image_versions2.candidates[1].url;
 
         const mediaValue = {
           type: isVideo ? 'video' : 'photo',
