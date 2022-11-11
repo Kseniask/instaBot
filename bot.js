@@ -43,7 +43,7 @@ bot.mention(async (ctx) => {
 
     const userId = await page.evaluate(
       (instaUsername) => {
-        const profile = document.querySelector(`[data-name=${instaUsername}]`);
+        const profile = document.querySelector(`[data-name='${instaUsername}']`);
         if (!profile) {
           return 0;
         }
