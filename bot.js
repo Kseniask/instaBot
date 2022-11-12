@@ -1,6 +1,9 @@
 require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const { TELEGRAM_TOKEN } = process.env;
+const axios = require('axios');
+const puppeteer = require('puppeteer');
+let askId = false;
 async function clearUpdates (token) {
   const { result } = (await axios.get(`https://api.telegram.org/bot${token}/getUpdates`)).data;
 
@@ -10,10 +13,8 @@ async function clearUpdates (token) {
     );
   }
 }
-clearUpdates();
+clearUpdates(TELEGRAM_TOKEN);
 const bot = new Telegraf(TELEGRAM_TOKEN);
-const axios = require('axios');
-const puppeteer = require('puppeteer');
 
 const introMessage = 'Привіт крисятко. Велкам в світ, де можна дивитись сторі бившого анонімно!';
 const helpMessage =
@@ -26,13 +27,44 @@ const randomPhrases = [
   'On it! Надіємось шо шось відкопаю',
   'Єс сер! Виконую завдання'
 ];
-process.on('uncaughtException', function (error) {
-  console.log('\x1b[31m', 'Exception: ', error, '\x1b[0m');
-});
 
-process.on('unhandledRejection', function (error, p) {
-  console.log('\x1b[31m', 'Error: ', error.message, '\x1b[0m');
-});
+const getUserId = async (userName) => {
+  const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+  const page = await browser.newPage();
+  await page.setUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36'
+  );
+  await page.setRequestInterception(true);
+  let stopRequests = false;
+  page.on('request', async (request) => {
+    // https://www.instagram.com/api/v1/lox/account_recommendations
+    if (request.url().includes(`https://www.instagram.com/api/v1/lox/account_recommendations`)) {
+      stopRequests = true;
+      return await request.continue();
+    }
+    if (stopRequests) {
+      return await request.abort();
+    }
+    await request.continue();
+  });
+  await page.goto(`https://instagram.com/${userName}`, { waitUntil: 'load' });
+  // await page.screenshot({ path: 'userId.jpg' });
+  userId = await page.evaluate(() => {
+    let foundId = false;
+    let currentIndex = 32;
+    const getIdText = (scriptIndex) => document.scripts[scriptIndex].text.split('"id":"')[1];
+    while (foundId === false && currentIndex < 45) {
+      foundId = getIdText(currentIndex) !== undefined;
+      currentIndex++;
+    }
+    if (foundId) {
+      return getIdText(currentIndex - 1).split('","')[0];
+    }
+    return 0;
+  });
+  await browser.close();
+  return userId;
+};
 
 bot.start((ctx) => {
   ctx.reply(introMessage).then(() => ctx.reply(helpMessage));
@@ -41,29 +73,16 @@ bot.start((ctx) => {
 //@
 bot.mention(async (ctx) => {
   const instaUsername = ctx.update.message.text.slice(1);
-
+  let userId;
   ctx.reply(randomPhrases[(Math.random() * randomPhrases.length) | 0]);
-
-  const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+  //document.scripts[35].text.split('"id":"')[1].split('","')[0]
 
   try {
-    const page = await browser.newPage();
-    await page.goto(`https://dumpor.com/v/${instaUsername}`, { waitUntil: 'networkidle0' });
-    const isPrivate = false;
-
-    const userId = await page.evaluate(
-      (instaUsername) => {
-        const profile = document.querySelector(`[data-name='${instaUsername}']`);
-        if (!profile) {
-          return 0;
-        }
-        return profile.getAttribute('data-id');
-      },
-      instaUsername,
-      isPrivate
-    );
-    if (userId === 0) {
-      return ctx.reply('Або акаунт приватний aбо такого юзера не існує..');
+    if (!Number(instaUsername)) {
+      userId = await getUserId(instaUsername);
+      if (userId === 0) {
+        return ctx.reply('Або акаунт приватний aбо такого юзера не існує..');
+      }
     }
 
     const userStories = await axios
@@ -113,15 +132,36 @@ bot.mention(async (ctx) => {
   } catch (e) {
     console.log('Error occured: ', e.message);
     ctx.reply('Шось не то.. Виникла помилка');
-  } finally {
-    await browser.close();
   }
 });
 
-bot.on('text', (ctx) => {
+bot.command('getId', (ctx) => {
+  askId = true;
+  return ctx.reply("Скажи мені ім'я користувача (без @)");
+});
+
+bot.on('text', async (ctx) => {
+  if (askId) {
+    const userId = await getUserId(ctx.message.text);
+    askId = false;
+    if (userId === 0) {
+      return ctx.reply('Не знайшов.. Напевне такого юзера нема або сервер знов дурачиться');
+    }
+    return ctx.reply(`Вот тобі ID, користуйся: ${userId}`);
+  }
   ctx.reply("Хм.. Нє, шось не то... Пам'ятай шо перед ніком треба собачку (@)");
 });
 
-bot.command('menu', (ctx) => {});
-
 bot.launch();
+
+// Enable graceful stop
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
+process.on('uncaughtException', function (error) {
+  console.log('\x1b[31m', 'Exception: ', error, '\x1b[0m');
+});
+
+process.on('unhandledRejection', function (error, p) {
+  console.log('\x1b[31m', 'Error: ', error.message, '\x1b[0m');
+});
